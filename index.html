@@ -424,7 +424,9 @@ function admin(){
   if($('add'))$('add').onclick=async()=>{await sb.from('trips').insert({title:'New trip',from_place:'Bandel',open:true});redo()};
   document.querySelectorAll('.sec-card[data-id]').forEach(c=>{
     const id=c.dataset.id,t=S.trips.find(x=>x.id===id),ph=[...(t.photos||[])];
-    const upd=async o=>{const {data,error}=await sb.from('trips').update(o).eq('id',id).select('id');if(error)alert(error.message);else if(!data||!data.length)alert('Not saved. Your admin login may have expired. Please log out and log in again.');else toast('✅ Saved');redo()};dayInit(c,id);
+    const upd=async o=>{let r=await sb.from('trips').update(o).eq('id',id).select('id');
+      if(r.error&&'trip_time' in o&&/time|trip_time/i.test(r.error.message||'')){o={...o,trip_time:null};r=await sb.from('trips').update(o).eq('id',id).select('id')}
+      const {data,error}=r;if(error){console.error('Trip save error',error);alert('Trip not saved:\n'+error.message+(error.details?'\n'+error.details:'')+(error.hint?'\n'+error.hint:''))}else if(!data||!data.length)alert('Not saved. Your admin login may have expired. Please log out and log in again.');else toast('✅ Saved');redo()};dayInit(c,id);
     c.querySelectorAll('.ksw').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(k===c.dataset.kind)return;if(taken(t)&&!confirm('This trip already has bookings. Changing the type can break them. Continue?'))return;c.dataset.kind=k;c.querySelectorAll('.ksw').forEach(x=>x.classList.toggle('on',x===b))});
     c.querySelectorAll('[data-m] .seat').forEach(b=>b.onclick=async()=>{const s=b.dataset.s,x=(S.st[id]||{})[s];
       if(x){await sb.from('seats').delete().eq('trip_id',id).eq('label',s)}else{await sb.from('seats').insert({trip_id:id,label:s,status:'booked',name:'Admin'})}redo()});
@@ -433,11 +435,11 @@ function admin(){
         if(a==='thumb'){const u=await up(id,fs[0]);if(u)upd({thumb:u});else b.disabled=false}
         else{const us=[];for(const f of fs){const u=await up(id,f);if(u)us.push(u)}if(us.length)upd({photos:ph.concat(us)});else b.disabled=false}};return}
       b.onclick=async()=>{
-        if(a==='save'){const o={},sec={};c.querySelectorAll('[data-f]').forEach(e=>{const f=e.dataset.f;o[f]=['price','seats'].includes(f)?+e.value:(f==='trip_date'&&!e.value?null:e.value)});c.querySelectorAll('[data-sec]').forEach(e=>sec[e.dataset.sec]=e.value.trim());sec.days=JSON.stringify((DAYS[id]||[]).filter(x=>x.t||x.d||x.m||x.dim.length||x.mim.length));o.details=pack(sec);const kind=c.dataset.kind||'bus';o.kind=kind;const X=n=>{const e=c.querySelector('[data-x="'+n+'"]');return e?e.value:''};
+        if(a==='save'){try{const o={},sec={};c.querySelectorAll('[data-f]').forEach(e=>{const f=e.dataset.f;o[f]=['price','seats'].includes(f)?(+e.value||0):(f==='trip_date'&&!e.value?null:e.value)});c.querySelectorAll('[data-sec]').forEach(e=>sec[e.dataset.sec]=e.value.trim());sec.days=JSON.stringify((DAYS[id]||[]).filter(x=>x.t||x.d||x.m||x.dim.length||x.mim.length));o.details=pack(sec);const kind=c.dataset.kind||'bus';o.kind=kind;const X=n=>{const e=c.querySelector('[data-x="'+n+'"]');return e?e.value:''};
           if(kind==='bus'){o.seats=+X('seats_bus')||49;o.cars=null;o.per_car=null;o.vehicle_name=null}
           else if(kind==='train'){o.seats=Math.min(300,Math.max(1,+X('seats_train')||1));o.cars=null;o.per_car=null;o.vehicle_name=X('vn_train')}
           else{const cars=Math.max(1,+X('cars')||1),per=Math.max(2,+X('per')||7);if(cars*per>300)return alert('Too many packages (max 300)');o.cars=cars;o.per_car=per;o.seats=cars*per;o.vehicle_name=X('vn_sc')||'Scorpio'}
-          upd(o)}
+          upd(o)}catch(err){console.error(err);alert('Save failed: '+err.message)}}
         else if(a==='open')upd({open:!t.open});
         else if(a==='del'){if(confirm('Delete this trip?')){await sb.from('trips').delete().eq('id',id);adm='';redo()}}
         else if(a==='rm'){ph.splice(k,1);upd({photos:ph})}
